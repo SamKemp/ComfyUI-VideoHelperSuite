@@ -2496,6 +2496,19 @@ function getLatentPreviewCtx(id, width, height) {
                 if (!(height > 0)) {
                     height = 0;
                 }
+                if (!node.type.startsWith("VHS_")) {
+                    // For non-VHS nodes (e.g. KSampler), cap the preview height to the
+                    // space actually available inside the node so that the node is never
+                    // forced to grow to match the preview's native aspect ratio.
+                    let otherHeight = node.widgets
+                        .filter(w => w !== this)
+                        .reduce((sum, w) => {
+                            let h = w.computeSize ? w.computeSize(width)[1] : LiteGraph.NODE_WIDGET_HEIGHT;
+                            return sum + Math.max(0, h);
+                        }, 0);
+                    let available = node.size[1] - LiteGraph.NODE_TITLE_HEIGHT - otherHeight;
+                    height = Math.min(height, Math.max(0, available));
+                }
                 this.computedHeight = height + 10;
                 return [width, height];
             }
@@ -2503,12 +2516,17 @@ function getLatentPreviewCtx(id, width, height) {
         }
     }
     let canvasEl = previewWidget.element
-    if (!previewWidget.ctx || canvasEl.width != width
-        || canvasEl.height != height) {
+    if (!previewWidget.aspectRatio || canvasEl.width !== width
+        || canvasEl.height !== height) {
         previewWidget.aspectRatio = width / height
         canvasEl.width = width
         canvasEl.height = height
-        fitHeight(node)
+        if (node.type.startsWith("VHS_")) {
+            // Only resize VHS-owned nodes; external nodes keep their user-set dimensions.
+            fitHeight(node)
+        } else {
+            node?.graph?.setDirtyCanvas(true)
+        }
     }
     return canvasEl.getContext("2d")
 }
