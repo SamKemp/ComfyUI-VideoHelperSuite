@@ -2496,6 +2496,30 @@ function getLatentPreviewCtx(id, width, height) {
                 if (!(height > 0)) {
                     height = 0;
                 }
+                if (!node.type.startsWith("VHS_")) {
+                    // For non-VHS nodes (e.g. KSampler), fit the canvas inside the
+                    // available space without letting it force the node to grow.
+                    let otherHeight = node.widgets
+                        .filter(w => w !== this)
+                        .reduce((sum, w) => {
+                            let h = w.computeSize ? w.computeSize(width)[1] : LiteGraph.NODE_WIDGET_HEIGHT;
+                            return sum + Math.max(0, h);
+                        }, 0);
+                    let availableHeight = Math.max(0, node.size[1] - LiteGraph.NODE_TITLE_HEIGHT - otherHeight);
+
+                    // "contain" fit: preserve aspect ratio within width × availableHeight
+                    if (width / this.aspectRatio <= availableHeight) {
+                        // Width-constrained: fill the full widget width.
+                        height = Math.floor(width / this.aspectRatio);
+                        canvasEl.style.width = "100%";
+                        canvasEl.style.height = height + "px";
+                    } else {
+                        // Height-constrained: shrink width to keep the aspect ratio.
+                        height = availableHeight;
+                        canvasEl.style.width = Math.floor(availableHeight * this.aspectRatio) + "px";
+                        canvasEl.style.height = height + "px";
+                    }
+                }
                 this.computedHeight = height + 10;
                 return [width, height];
             }
@@ -2503,12 +2527,17 @@ function getLatentPreviewCtx(id, width, height) {
         }
     }
     let canvasEl = previewWidget.element
-    if (!previewWidget.ctx || canvasEl.width != width
-        || canvasEl.height != height) {
+    if (!previewWidget.aspectRatio || canvasEl.width !== width
+        || canvasEl.height !== height) {
         previewWidget.aspectRatio = width / height
         canvasEl.width = width
         canvasEl.height = height
-        fitHeight(node)
+        if (node.type.startsWith("VHS_")) {
+            // Only resize VHS-owned nodes; external nodes keep their user-set dimensions.
+            fitHeight(node)
+        } else {
+            node?.graph?.setDirtyCanvas(true)
+        }
     }
     return canvasEl.getContext("2d")
 }
