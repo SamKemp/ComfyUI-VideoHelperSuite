@@ -2497,17 +2497,28 @@ function getLatentPreviewCtx(id, width, height) {
                     height = 0;
                 }
                 if (!node.type.startsWith("VHS_")) {
-                    // For non-VHS nodes (e.g. KSampler), cap the preview height to the
-                    // space actually available inside the node so that the node is never
-                    // forced to grow to match the preview's native aspect ratio.
+                    // For non-VHS nodes (e.g. KSampler), fit the canvas inside the
+                    // available space without letting it force the node to grow.
                     let otherHeight = node.widgets
                         .filter(w => w !== this)
                         .reduce((sum, w) => {
                             let h = w.computeSize ? w.computeSize(width)[1] : LiteGraph.NODE_WIDGET_HEIGHT;
                             return sum + Math.max(0, h);
                         }, 0);
-                    let available = node.size[1] - LiteGraph.NODE_TITLE_HEIGHT - otherHeight;
-                    height = Math.min(height, Math.max(0, available));
+                    let availableHeight = Math.max(0, node.size[1] - LiteGraph.NODE_TITLE_HEIGHT - otherHeight);
+
+                    // "contain" fit: preserve aspect ratio within width × availableHeight
+                    if (width / this.aspectRatio <= availableHeight) {
+                        // Width-constrained: fill the full widget width.
+                        height = Math.floor(width / this.aspectRatio);
+                        canvasEl.style.width = "100%";
+                        canvasEl.style.height = height + "px";
+                    } else {
+                        // Height-constrained: shrink width to keep the aspect ratio.
+                        height = availableHeight;
+                        canvasEl.style.width = Math.floor(availableHeight * this.aspectRatio) + "px";
+                        canvasEl.style.height = height + "px";
+                    }
                 }
                 this.computedHeight = height + 10;
                 return [width, height];
